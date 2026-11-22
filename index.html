@@ -129,12 +129,12 @@ th{color:var(--mu);font-size:12px}
 <div class="modal" id="modal"><div id="mbody"></div></div>
 <div class="toast" id="toast" role="status"></div>
 
-<!-- 초기 시드 데이터 -->
 <script id="seed" type="application/json">[{"builds":{"L":"-","T":"-"},"createdAt":1795317414522,"date":"2026-11-22","id":"m_1795317414522_1sqc","map":"투혼","notes":{"L":"","T":""},"players":["L","T"],"races":{"L":"Z","T":"T"},"seq":1,"winner":"L"}]</script>
 
 <script>
 const LOCAL_MATCHES_KEY = "sc_matches_local_v1";
 const CUSTOM_DB_KEY = "sc_custom_firebase_cfg_v1";
+const ADMIN_PW_KEY = "sc_delete_pw_v2";
 
 const BUILTIN_FIREBASE_CONFIG = {
   apiKey: "AIzaSyBNN0l2LbInlP69bAig1poS4mISSta4tE4",
@@ -144,6 +144,14 @@ const BUILTIN_FIREBASE_CONFIG = {
   messagingSenderId: "137075151654",
   appId: "1:137075151654:web:17956a313f8b714b8f67e7"
 };
+
+let adminPassword = "0008";
+try {
+  const savedPw = localStorage.getItem(ADMIN_PW_KEY);
+  if (savedPw && savedPw !== "1234") adminPassword = savedPw;
+} catch (e) {}
+
+let pendingProtectedAction = null;
 
 let customDbConfig = BUILTIN_FIREBASE_CONFIG;
 try {
@@ -166,7 +174,9 @@ let cloudBridge = {
   deleteMatch: null,
   batchSave: null,
   batchDelete: null,
-  fetchAll: null
+  fetchAll: null,
+  fetchPassword: null,
+  savePassword: null
 };
 
 const P = [{ id: "L", n: "레오" }, { id: "G", n: "경섭" }, { id: "T", n: "태호" }];
@@ -650,12 +660,61 @@ function openDbConfigModal() {
   $("#modal").classList.add("open");
 }
 
+function requestProtectedAction(title, desc, fn) {
+  pendingProtectedAction = fn;
+  $("#mbody").innerHTML =
+    '<h2>🔒 ' + esc(title) + '</h2>' +
+    '<p class="m" style="margin-bottom:12px">' + esc(desc) + '</p>' +
+    '<div class="f"><label>비밀번호</label>' +
+    '<input type="password" inputmode="numeric" class="in" id="delPwInput" placeholder="비밀번호 4자리 입력"></div>' +
+    '<div class="row" style="justify-content:space-between;gap:8px">' +
+    '<button type="button" class="btn sm" data-a="openChangePwModal">비밀번호 변경</button>' +
+    '<div class="row" style="gap:6px">' +
+    '<button type="button" class="btn" data-a="closeModal">취소</button>' +
+    '<button type="button" class="btn dg" data-a="confirmProtected">확인</button></div></div>';
+  $("#modal").classList.add("open");
+  setTimeout(() => {
+    const inp = $("#delPwInput");
+    if (inp) {
+      inp.focus();
+      inp.onkeydown = (e) => { if (e.key === "Enter") ACT.confirmProtected(); };
+    }
+  }, 50);
+}
+
+function openChangePwModal() {
+  $("#mbody").innerHTML =
+    '<h2>🔑 삭제/초기화 비밀번호 변경</h2>' +
+    '<p class="m" style="margin-bottom:12px">현재 비밀번호를 확인한 뒤 새 비밀번호로 변경합니다.</p>' +
+    '<div class="f"><label>현재 비밀번호</label><input type="password" inputmode="numeric" class="in" id="curPwInput" placeholder="현재 비밀번호"></div>' +
+    '<div class="f"><label>새 비밀번호</label><input type="password" inputmode="numeric" class="in" id="newPwInput" placeholder="새 비밀번호"></div>' +
+    '<div class="f"><label>새 비밀번호 확인</label><input type="password" inputmode="numeric" class="in" id="newPwConfirm" placeholder="새 비밀번호 다시 입력"></div>' +
+    '<div class="row" style="justify-content:flex-end;gap:8px">' +
+    '<button type="button" class="btn" data-a="closeModal">취소</button>' +
+    '<button type="button" class="btn pri" data-a="submitChangePw">변경 저장</button></div>';
+  $("#modal").classList.add("open");
+  setTimeout(() => {
+    const inp = $("#curPwInput");
+    if (inp) inp.focus();
+  }, 50);
+}
+
 const closeModal = () => {
   S.edit = null;
+  pendingProtectedAction = null;
   $("#modal").classList.remove("open");
 };
 
 async function refreshFromCloud(showToast = false) {
+  if (cloudBridge.enabled && cloudBridge.fetchPassword) {
+    try {
+      const remotePw = await cloudBridge.fetchPassword();
+      if (remotePw && remotePw !== "1234") {
+        adminPassword = String(remotePw);
+        try { localStorage.setItem(ADMIN_PW_KEY, adminPassword); } catch (e) {}
+      }
+    } catch (e) {}
+  }
   if (cloudBridge.enabled && cloudBridge.fetchAll) {
     try {
       setSyncLabel("불러오는 중…");
@@ -783,51 +842,104 @@ const ACT = {
     render();
   },
   edit: (v) => openEdit(v),
-  del: async (v) => {
+  openChangePwModal: openChangePwModal,
+  confirmProtected: async () => {
+    const val = ($("#delPwInput") && $("#delPwInput").value.trim()) || "";
+    if (val !== adminPassword) {
+      toast("비밀번호가 일치하지 않습니다.");
+      const inp = $("#delPwInput");
+      if (inp) { inp.value = ""; inp.focus(); }
+      return;
+    }
+    const fn = pendingProtectedAction;
+    closeModal();
+    if (fn) await fn();
+  },
+  submitChangePw: async () => {
+    const cur = ($("#curPwInput") && $("#curPwInput").value.trim()) || "";
+    const p1 = ($("#newPwInput") && $("#newPwInput").value.trim()) || "";
+    const p2 = ($("#newPwConfirm") && $("#newPwConfirm").value.trim()) || "";
+    if (cur !== adminPassword) {
+      toast("현재 비밀번호가 일치하지 않습니다.");
+      return;
+    }
+    if (!p1) {
+      toast("새 비밀번호를 입력해 주세요.");
+      return;
+    }
+    if (p1 !== p2) {
+      toast("새 비밀번호 확인이 일치하지 않습니다.");
+      return;
+    }
+    adminPassword = p1;
+    try { localStorage.setItem(ADMIN_PW_KEY, p1); } catch (e) {}
+    if (cloudBridge.enabled && cloudBridge.savePassword) {
+      try {
+        await cloudBridge.savePassword(p1);
+      } catch (e) {
+        console.warn("Cloud pw save error:", e);
+      }
+    }
+    closeModal();
+    toast("비밀번호가 변경되었습니다.");
+  },
+  del: (v) => {
     const m = matches.find((x) => x.id === v);
     if (!m) return;
-    const backupMatch = JSON.parse(JSON.stringify(m));
-    await deleteMatchFromDB(v);
-    await reindexAndSyncDate(backupMatch.date);
-    toast("경기를 삭제했어요", async () => {
-      await saveMatchToDB(backupMatch);
-      await reindexAndSyncDate(backupMatch.date);
-    });
+    requestProtectedAction(
+      "경기 삭제 확인",
+      S.date + " #" + m.seq + " (" + nm(m.players[0]) + " vs " + nm(m.players[1]) + ") 기록을 삭제하려면 비밀번호를 입력하세요.",
+      async () => {
+        const backupMatch = JSON.parse(JSON.stringify(m));
+        await deleteMatchFromDB(v);
+        await reindexAndSyncDate(backupMatch.date);
+        toast("경기를 삭제했어요", async () => {
+          await saveMatchToDB(backupMatch);
+          await reindexAndSyncDate(backupMatch.date);
+        });
+      }
+    );
   },
-  clearDay: async () => {
+  clearDay: () => {
     const rm = day();
     if (!rm.length) {
       toast("지울 기록이 없어요");
       return;
     }
-    const backupList = JSON.parse(JSON.stringify(rm));
-    const rmIds = {};
-    rm.forEach((m) => { rmIds[m.id] = 1; });
-    matches = matches.filter((m) => !rmIds[m.id]);
-    saveLocalMatches(matches);
-    render();
+    requestProtectedAction(
+      "이 날짜 초기화 확인",
+      S.date + "의 모든 경기 기록(" + rm.length + "경기)을 삭제하려면 비밀번호를 입력하세요.",
+      async () => {
+        const backupList = JSON.parse(JSON.stringify(rm));
+        const rmIds = {};
+        rm.forEach((m) => { rmIds[m.id] = 1; });
+        matches = matches.filter((m) => !rmIds[m.id]);
+        saveLocalMatches(matches);
+        render();
 
-    if (cloudBridge.enabled && cloudBridge.batchDelete) {
-      try {
-        await cloudBridge.batchDelete(rm.map((m) => m.id));
-        setSyncLabel("클라우드 저장됨 (" + matches.length + "경기)");
-      } catch (e) {
-        console.warn("Clear day cloud error:", e);
-      }
-    } else {
-      setSyncLabel("기기 저장 모드 (" + matches.length + "경기)");
-    }
+        if (cloudBridge.enabled && cloudBridge.batchDelete) {
+          try {
+            await cloudBridge.batchDelete(rm.map((m) => m.id));
+            setSyncLabel("클라우드 저장됨 (" + matches.length + "경기)");
+          } catch (e) {
+            console.warn("Clear day cloud error:", e);
+          }
+        } else {
+          setSyncLabel("기기 저장 모드 (" + matches.length + "경기)");
+        }
 
-    toast(S.date + " 기록 " + rm.length + "경기를 지웠어요", async () => {
-      matches = matches.concat(backupList).sort(cmp);
-      saveLocalMatches(matches);
-      render();
-      if (cloudBridge.enabled && cloudBridge.batchSave) {
-        try {
-          await cloudBridge.batchSave(backupList);
-        } catch (e) {}
+        toast(S.date + " 기록 " + rm.length + "경기를 지웠어요", async () => {
+          matches = matches.concat(backupList).sort(cmp);
+          saveLocalMatches(matches);
+          render();
+          if (cloudBridge.enabled && cloudBridge.batchSave) {
+            try {
+              await cloudBridge.batchSave(backupList);
+            } catch (e) {}
+          }
+        });
       }
-    });
+    );
   },
   undo: () => {
     if (undoFn) {
@@ -954,7 +1066,7 @@ window.__scBridgeReady = async function (bridge) {
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, getDocs, setDoc, deleteDoc, collection, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, getDocs, setDoc, deleteDoc, collection, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 try {
   const app = initializeApp(activeConfig);
@@ -969,6 +1081,19 @@ try {
 
   const matchesColRef = () => collection(db, "artifacts", appId, "public", "data", "matches");
   const matchDocRef = (id) => doc(db, "artifacts", appId, "public", "data", "matches", id);
+  const configDocRef = () => doc(db, "artifacts", appId, "public", "data", "settings", "deleteLock");
+
+  const fetchPassword = async () => {
+    const snap = await getDoc(configDocRef());
+    if (snap.exists() && snap.data().password) {
+      return String(snap.data().password);
+    }
+    return null;
+  };
+
+  const savePassword = async (pw) => {
+    await setDoc(configDocRef(), { password: String(pw), updatedAt: Date.now() }, { merge: true });
+  };
 
   const fetchAll = async () => {
     const snapshot = await getDocs(matchesColRef());
@@ -1008,7 +1133,9 @@ try {
       saveMatch,
       deleteMatch,
       batchSave,
-      batchDelete
+      batchDelete,
+      fetchPassword,
+      savePassword
     });
   }
 } catch (err) {
