@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>투혼 1:1 전적 기록기</title>
+<title>투혼 1:1 전적</title>
 <style>
-:root{--bg:#090c12;--pn:#101622;--p2:#172030;--ln:#26354d;--tx:#eef4ff;--mu:#8798b4;--w:#22c55e;--l:#f43f5e;--ac:#38bdf8;--sc:#f59e0b;--rZ:#c084fc;--rT:#60a5fa;--rP:#fbbf24;color-scheme:dark;
+:root{--pL:#338ced;--pG:#e76624;--pT:#00a888;--bg:#090c12;--pn:#101622;--p2:#172030;--ln:#26354d;--tx:#eef4ff;--mu:#8798b4;--w:#22c55e;--l:#f43f5e;--ac:#38bdf8;--sc:#f59e0b;--rZ:#c084fc;--rT:#60a5fa;--rP:#fbbf24;color-scheme:dark;
 box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 html{scroll-padding-top:env(safe-area-inset-top,0px);background:#090c12}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -75,63 +75,86 @@ th{color:var(--mu);font-size:12px}
 .pend h2{color:var(--sc)}
 .pend .mi{border-color:rgba(245,158,11,.35)}
 .auto{color:var(--ac);border-color:rgba(56,189,248,.45)}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin:2px 2px 12px}
+.top .m{display:block;margin-top:2px}
+.menu .row{justify-content:flex-start;gap:6px}
+.period{display:flex;width:100%;margin-bottom:8px}
+.period button{flex:1}
+.range{margin:0 2px 10px}
+.players{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.players .card{margin:0}
+@media(max-width:680px){.players{grid-template-columns:1fr}}
+.pc{display:flex;align-items:center;gap:14px}
+.pc .info{flex:1;min-width:0}
+.pc .nmr{display:flex;align-items:center;gap:6px;font-size:16px;font-weight:900}
+.rank{font-size:11px;font-weight:800;color:var(--mu);border:1px solid var(--ln);border-radius:999px;padding:0 7px}
+.wl{font-size:13px;font-weight:700;margin:2px 0 6px}
+.form{display:flex;gap:3px;flex-wrap:wrap}
+.form i{width:12px;height:12px;border-radius:3px;border:1.5px solid var(--ln);display:inline-block}
+.sw{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
+.lg{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0;font-size:13px}
+.lg>span:first-child{display:flex;align-items:center;gap:6px}
+.lg>span{white-space:nowrap}
+.chart{display:flex;align-items:center;gap:14px}
+.chart .legend{flex:1;min-width:0}
+.hist{margin-top:8px;border-top:1px solid var(--ln);padding-top:6px}
+.hist div{display:flex;justify-content:space-between;padding:2px 0}
+.dh{display:flex;justify-content:space-between;align-items:baseline;margin:14px 2px 6px;font-weight:800}
+.dh:first-child{margin-top:0}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+svg text{font-family:inherit}
+.empty{padding:18px 4px;text-align:center}
 a.btn{text-decoration:none;display:inline-flex;align-items:center}
 .toast button{background:none;border:0;color:#0284c7;font-weight:800;cursor:pointer;min-height:32px}
 </style>
 </head>
 <body>
 <div class="app">
-  <div class="row" style="margin:2px 2px 10px">
-    <div class="row" style="gap:8px">
-      <h1>투혼 1:1 전적 기록기<span class="sc-tag">BROOD WAR</span></h1>
+  <header class="top">
+    <div>
+      <h1>투혼 1:1 전적<span class="sc-tag">BROOD WAR</span></h1>
       <span class="m" id="sync">준비 중…</span>
     </div>
-    <div class="row" style="gap:6px">
-      <button type="button" class="btn sm" data-a="refreshData" title="저장된 데이터 불러오기">↻ 새로고침</button>
-      <button type="button" class="btn sm" data-a="openDbConfig" title="클라우드 DB 설정">☁️ DB 연결</button>
+    <div class="row" style="gap:6px;flex-wrap:nowrap">
+      <button type="button" class="btn sm" data-a="refreshData" title="새로고침" aria-label="새로고침">↻</button>
+      <button type="button" class="btn sm" data-a="menu" aria-label="메뉴" aria-expanded="false">⋯ 메뉴</button>
     </div>
-  </div>
-
-  <section class="card pend" id="pend" hidden></section>
-  <section class="card" id="wiz"></section>
-
-  <div class="card">
+  </header>
+  <div class="card menu" id="menu" hidden>
     <div class="row">
-      <div class="row" style="gap:6px;flex-wrap:nowrap">
-        <button type="button" class="btn" data-a="prev" aria-label="전날">◀</button>
-        <input type="date" class="in" id="date" style="width:150px">
-        <button type="button" class="btn" data-a="next" aria-label="다음날">▶</button>
-        <button type="button" class="btn" data-a="today">오늘</button>
-      </div>
-      <div class="seg" id="scope">
-        <button type="button" data-a="scope" data-v="day" class="on">이 날짜</button>
-        <button type="button" data-a="scope" data-v="all">전체 누적</button>
-      </div>
-    </div>
-  </div>
-
-  <section class="strip" id="strip"></section>
-
-  <nav class="tabs" id="tabs">
-    <button type="button" data-a="tab" data-v="list" class="on">경기 목록</button>
-    <button type="button" data-a="tab" data-v="h2h">상대 전적</button>
-    <button type="button" data-a="tab" data-v="race">종족</button>
-    <button type="button" data-a="tab" data-v="build">빌드</button>
-  </nav>
-
-  <main id="tab"></main>
-
-  <div class="card">
-    <div class="row" style="justify-content:flex-start;gap:6px">
+      <button type="button" class="btn" data-a="toggleWiz">✏️ 수동으로 추가</button>
       <button type="button" class="btn" data-a="kakao">카톡 전적 복사</button>
       <button type="button" class="btn" data-a="backup">백업 · 복원</button>
-      <button type="button" class="btn dg" data-a="clearDay">이 날짜 초기화</button>
+      <button type="button" class="btn" data-a="openDbConfig">☁️ DB 연결</button>
     </div>
   </div>
-
+  <section class="card" id="wizWrap" hidden>
+    <div class="row" style="gap:6px;flex-wrap:nowrap;margin-bottom:12px">
+      <button type="button" class="btn" data-a="prev" aria-label="전날">◀</button>
+      <input type="date" class="in" id="date" style="width:150px">
+      <button type="button" class="btn" data-a="next" aria-label="다음날">▶</button>
+      <button type="button" class="btn" data-a="today">오늘</button>
+    </div>
+    <div id="wiz"></div>
+  </section>
+  <section class="card pend" id="pend" hidden></section>
+  <nav class="seg period" id="period" aria-label="기간">
+    <button type="button" data-a="period" data-v="today">오늘</button>
+    <button type="button" data-a="period" data-v="7">7일</button>
+    <button type="button" data-a="period" data-v="30">30일</button>
+    <button type="button" data-a="period" data-v="all">전체</button>
+  </nav>
+  <p class="m range" id="range"></p>
+  <section class="players" id="strip"></section>
+  <nav class="tabs" id="tabs">
+    <button type="button" data-a="tab" data-v="h2h">상대 전적</button>
+    <button type="button" data-a="tab" data-v="race">종족</button>
+    <button type="button" data-a="tab" data-v="daily">일별</button>
+    <button type="button" data-a="tab" data-v="list">경기 기록</button>
+  </nav>
+  <main id="tab"></main>
   <div id="panel"></div>
 </div>
-
 <div class="modal" id="modal"><div id="mbody"></div></div>
 <div class="toast" id="toast" role="status"></div>
 
@@ -252,7 +275,10 @@ const S = {
   step: 1,
   date: fmt(new Date()),
   scope: "day",
-  tab: "list",
+  period: "all",
+  tab: "h2h",
+  showWiz: false,
+  menu: false,
   sel: [],
   races: { L: "Z", G: "T", T: "P" },
   winner: null,
@@ -281,7 +307,22 @@ function updateLastRaces() {
 }
 
 const day = () => matches.filter((m) => m.date === S.date).sort(cmp);
-const scoped = () => (S.scope === "day" ? day() : matches.slice().sort(cmp));
+const todayStr = () => fmt(new Date());
+const PERIOD_LABEL = { today: "오늘", "7": "최근 7일", "30": "최근 30일", all: "전체" };
+function periodStart() {
+  if (S.period === "today") return todayStr();
+  if (S.period === "7") return shift(todayStr(), -6);
+  if (S.period === "30") return shift(todayStr(), -29);
+  return "";
+}
+const scoped = () => {
+  const from = periodStart();
+  return matches.filter((m) => !from || m.date >= from).sort(cmp);
+};
+const PC = { L: "var(--pL)", G: "var(--pG)", T: "var(--pT)" };
+const RC = { Z: "var(--rZ)", T: "var(--rT)", P: "var(--rP)" };
+const sw = (c) => '<i class="sw" style="background:' + c + '"></i>';
+const md = (d) => d.slice(5).replace("-", ".");
 const loserOf = (m) => (m.winner === m.players[0] ? m.players[1] : m.players[0]);
 const raceOf = (m, p) => (m.races && m.races[p]) || "?";
 
@@ -392,25 +433,72 @@ function bar(w, l) {
   return '<div class="bar" title="' + w + "승 " + l + '패"><i class="w" style="width:' + (t ? (w / t) * 100 : 0) + '%"></i><i class="l" style="width:' + (t ? (l / t) * 100 : 0) + '%"></i></div>';
 }
 
-const stTxt = (x) => (x.st > 0 ? x.st + "연승" : x.st < 0 ? -x.st + "연패" : "기록 없음");
+
+// ---- SVG donut: segs [{v, c, t}] (c = null -> counted but not drawn; track shows through)
+function donut(segs, o) {
+  o = o || {};
+  const size = o.size || 76, sw = o.sw || 9, r = (size - sw) / 2, C = 2 * Math.PI * r, cx = size / 2;
+  const total = segs.reduce((a, x) => a + x.v, 0);
+  const drawn = segs.filter((x) => x.v > 0 && x.c);
+  const gap = drawn.length > 1 ? 2 : 0;
+  let off = 0, arcs = "";
+  segs.forEach((x) => {
+    if (!total || x.v <= 0) return;
+    const len = (x.v / total) * C;
+    if (x.c) {
+      const dash = Math.max(len - gap, 0.8);
+      arcs += '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" style="stroke:' + x.c + '" stroke-width="' + sw +
+        '" stroke-dasharray="' + dash.toFixed(2) + " " + (C - dash).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) +
+        '" transform="rotate(-90 ' + cx + " " + cx + ')">' + (x.t ? "<title>" + esc(x.t) + "</title>" : "") + "</circle>";
+    }
+    off += len;
+  });
+  return (
+    '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + " " + size + '" role="img" aria-label="' + esc(o.label || "") + '" style="flex:none">' +
+    '<circle cx="' + cx + '" cy="' + cx + '" r="' + r + '" fill="none" style="stroke:var(--p2)" stroke-width="' + sw + '"/>' + arcs +
+    (o.center != null ? '<text x="50%" y="' + (o.sub ? "47%" : "50%") + '" text-anchor="middle" dominant-baseline="central" style="fill:var(--tx);font-weight:900;font-size:' + (o.fs || 16) + 'px">' + esc(o.center) + "</text>" : "") +
+    (o.sub ? '<text x="50%" y="67%" text-anchor="middle" dominant-baseline="central" style="fill:var(--mu);font-size:10px;font-weight:700">' + esc(o.sub) + "</text>" : "") +
+    "</svg>"
+  );
+}
+
+const stTxt = (x) => (x.st > 1 ? x.st + "연승 중" : x.st < -1 ? -x.st + "연패 중" : x.st === 1 ? "최근 승" : x.st === -1 ? "최근 패" : "기록 없음");
+
+function renderRange(list) {
+  const el = $("#range");
+  if (!el) return;
+  if (!list.length) { el.textContent = PERIOD_LABEL[S.period] + " · 경기 없음"; return; }
+  const a = list[0].date, b = list[list.length - 1].date;
+  el.textContent = PERIOD_LABEL[S.period] + " · " + list.length + "경기 · " + (a === b ? md(a) : md(a) + " ~ " + md(b));
+}
 
 function renderStrip() {
-  const s = stats(scoped());
-  $("#strip").innerHTML = P.map((p) => {
-    const x = s[p.id];
+  const list = scoped(), s = stats(list);
+  renderRange(list);
+  const order = P.slice().sort((a, b) => {
+    const x = s[a.id], y = s[b.id], rx = x.w + x.l ? x.w / (x.w + x.l) : -1, ry = y.w + y.l ? y.w / (y.w + y.l) : -1;
+    return ry - rx || y.w - x.w;
+  });
+  $("#strip").innerHTML = order.map((p, i) => {
+    const x = s[p.id], g = x.w + x.l, races = {};
+    list.forEach((m) => { if (m.players.indexOf(p.id) > -1) { const r = raceOf(m, p.id); races[r] = (races[r] || 0) + 1; } });
+    const main = Object.keys(races).sort((a, b) => races[b] - races[a])[0];
     return (
-      '<div class="card"><div class="row"><b>' + p.n + "</b><span>" + x.w + "승 " + x.l + "패 · " + rate(x.w, x.l) + "</span></div>" +
-      bar(x.w, x.l) +
-      '<div class="row m"><span class="dots" aria-label="최근 5경기">' +
-      x.f.slice(-5).map((f) => '<i class="d ' + f + '"></i>').join("") +
-      '</span><span class="st ' + (x.st > 0 ? "w" : x.st < 0 ? "l" : "") + '">' + stTxt(x) + "</span></div></div>"
+      '<div class="card"><div class="pc">' +
+      donut([{ v: x.w, c: PC[p.id], t: x.w + "승" }, { v: x.l, c: null }], { center: g ? rate(x.w, x.l) : "-", sub: g ? g + "판" : "", label: p.n + " 승률 " + rate(x.w, x.l) }) +
+      '<div class="info"><div class="nmr">' + sw(PC[p.id]) + esc(p.n) + (g ? ' <span class="rank">' + (i + 1) + "위</span>" : "") +
+      (main && main !== "?" ? ' <span class="rc ' + main + '" style="font-size:13px" title="주 종족">' + main + "</span>" : "") + "</div>" +
+      '<div class="wl">' + x.w + "승 " + x.l + '패 <span class="st ' + (x.st > 0 ? "w" : x.st < 0 ? "l" : "") + '">· ' + stTxt(x) + "</span></div>" +
+      '<div class="form" aria-label="최근 10경기">' +
+      x.f.slice(-10).map((f) => '<i title="' + (f === "W" ? "승" : "패") + '" style="' + (f === "W" ? "background:" + PC[p.id] + ";border-color:" + PC[p.id] : "") + '"></i>').join("") +
+      "</div></div></div></div>"
     );
   }).join("");
 }
 
 function head(step, sub) {
   return (
-    '<div class="row" style="margin-bottom:8px"><h2 style="margin:0">' + S.date + " · 경기 #" + (day().length + 1) +
+    '<div class="row" style="margin-bottom:8px"><h2 style="margin:0">' + S.date + " · 수동 추가" +
     '</h2><span class="steps">' +
     ["선수", "종족", "승패"].map((t, i) => '<span class="sp' + (step === i + 1 ? " on" : step > i + 1 ? " ok" : "") + '">' + (i + 1) + ". " + t + "</span>").join("") +
     '</span></div><p class="m" style="margin-bottom:12px">' + sub + "</p>"
@@ -418,12 +506,15 @@ function head(step, sub) {
 }
 
 function renderWiz() {
+  const wrap = $("#wizWrap");
+  if (wrap) wrap.hidden = !S.showWiz;
+  if (!S.showWiz) return;
   const a = S.sel[0], b = S.sel[1];
   let h = "";
   if (S.step === 1 || S.sel.length < 2) {
     const last = day().slice(-1)[0];
     h =
-      head(1, "출전할 선수 2명을 고르세요 (" + S.sel.length + "/2)") +
+      head(1, "출전한 선수 2명을 고르세요 (" + S.sel.length + "/2)") +
       '<div class="pick">' +
       P.map((p) => {
         const on = S.sel.indexOf(p.id) > -1;
@@ -465,33 +556,49 @@ function item(m) {
   function side(p, tag) {
     const bd = m.builds && m.builds[p], nt = m.notes && m.notes[p];
     return (
-      '<span class="tag ' + tag + '">' + (tag === "w" ? "승" : "패") + "</span> <b>" + nm(p) +
+      '<span class="tag ' + tag + '">' + (tag === "w" ? "승" : "패") + "</span> " + sw(PC[p]) + " <b>" + nm(p) +
       '</b> <span class="rc ' + raceOf(m, p) + '">' + raceOf(m, p) + "</span>" +
       (hasB(bd) ? ' <span class="pill">' + esc(bd) + "</span>" : "") +
       (nt ? ' <span class="m">' + esc(nt) + "</span>" : "")
     );
   }
   const link = bwrepLink(m);
-  const actionBtns =
-    '<div style="display:flex;gap:6px">' +
-    (link ? '<a class="btn" href="' + esc(link) + '" target="_blank" rel="noopener" title="bwrep에서 리플레이 보기">🔗 리플</a>' : "") +
-    '<button type="button" class="btn" data-a="edit" data-v="' + esc(m.id) + '">수정</button><button type="button" class="btn dg" data-a="del" data-v="' + esc(m.id) + '">삭제</button></div>';
-
+  const t = m.playedAt ? hm(m.playedAt).slice(6) : "#" + m.seq;
   return (
-    '<div class="mi"><div><span class="m">' + (S.scope === "all" ? m.date.slice(5) + " " : "") + "#" + m.seq + "</span> " +
+    '<div class="mi"><div><span class="m">' + t + "</span> " +
     side(w, "w") + ' <span class="m">vs</span> ' + side(l, "l") +
-    (m.source === "auto" ? ' <span class="tag auto" title="자동 기록">자동</span>' : "") + "</div>" + actionBtns + "</div>"
+    (m.source === "auto" ? ' <span class="tag auto" title="자동 기록">자동</span>' : "") + "</div>" +
+    '<div style="display:flex;gap:6px">' +
+    (link ? '<a class="btn sm" href="' + esc(link) + '" target="_blank" rel="noopener" title="bwrep에서 리플레이 보기">🔗 리플</a>' : "") +
+    '<button type="button" class="btn sm" data-a="edit" data-v="' + esc(m.id) + '">수정</button><button type="button" class="btn sm dg" data-a="del" data-v="' + esc(m.id) + '">삭제</button></div></div>'
   );
 }
 
+const emptyCard = (msg) => '<div class="card"><p class="m empty">' + msg + "</p></div>";
+const noGames = () => emptyCard(PERIOD_LABEL[S.period] + " 경기가 없어요." + (S.period !== "all" ? " 위에서 <b>전체</b>를 눌러보세요." : ""));
+
 function tabList() {
   const l = scoped().slice().reverse();
-  const emptyMsg = "기록된 경기가 없습니다. 위에서 선수 2명을 골라 첫 경기를 기록하세요.";
-  return '<div class="card"><h2>' + (S.scope === "day" ? S.date : "전체") + " 경기 (" + l.length + ")</h2>" + (l.length ? l.map(item).join("") : '<p class="m">' + emptyMsg + "</p>") + "</div>";
+  if (!l.length) return noGames();
+  const byDate = {};
+  l.forEach((m) => { (byDate[m.date] = byDate[m.date] || []).push(m); });
+  return (
+    '<div class="card">' +
+    Object.keys(byDate).map((d) => {
+      const g = byDate[d], s = stats(g);
+      return (
+        '<div class="dh"><span>' + md(d) + ' <span class="m">' + g.length + "경기</span></span>" +
+        '<span class="m">' + P.filter((p) => s[p.id].w + s[p.id].l).map((p) => p.n + " " + s[p.id].w + "승").join(" · ") + "</span></div>" +
+        g.map(item).join("")
+      );
+    }).join("") +
+    "</div>"
+  );
 }
 
 function tabH2H() {
   const l = scoped(), pairs = [[0, 1], [0, 2], [1, 2]];
+  if (!l.length) return noGames();
   return (
     '<div class="g3x">' +
     pairs.map((pr) => {
@@ -504,13 +611,17 @@ function tabH2H() {
           logs.push(m);
         }
       });
+      const g = wa + wb;
       return (
-        '<div class="h2h"><div class="row"><b>' + a.n + " vs " + b.n + '</b><span class="m">' + (wa + wb) + "판</span></div>" +
-        '<div class="row" style="font-weight:800;margin-top:6px"><span>' + a.n + " " + wa + "승</span><span>" + wb + "승 " + b.n + "</span></div>" +
-        bar(wa, wb) +
+        '<div class="h2h"><div class="row" style="margin-bottom:10px"><b>' + a.n + " vs " + b.n + '</b><span class="m">' + g + "판</span></div>" +
+        '<div class="chart">' +
+        donut([{ v: wa, c: PC[a.id], t: a.n + " " + wa + "승" }, { v: wb, c: PC[b.id], t: b.n + " " + wb + "승" }], { center: g ? wa + ":" + wb : "-", fs: 15, label: a.n + " " + wa + "승, " + b.n + " " + wb + "승" }) +
+        '<div class="legend">' +
+        [[a, wa], [b, wb]].map((x) => '<div class="lg"><span>' + sw(PC[x[0].id]) + "<b>" + x[0].n + "</b></span><span>" + x[1] + '승 <span class="m">' + (g ? Math.round((x[1] / g) * 100) + "%" : "-") + "</span></span></div>").join("") +
+        "</div></div>" +
         (logs.length
-          ? logs.slice(-6).reverse().map((m) => '<div class="m" style="display:flex;justify-content:space-between;padding:3px 0"><span>' + (S.scope === "all" ? m.date.slice(5) + " " : "") + "#" + m.seq + " " + raceOf(m, a.id) + " vs " + raceOf(m, b.id) + '</span><b class="w">' + nm(m.winner) + "</b></div>").join("")
-          : '<p class="m">기록 없음</p>') +
+          ? '<div class="hist">' + logs.slice(-5).reverse().map((m) => '<div class="m"><span>' + md(m.date) + " " + raceOf(m, a.id) + " vs " + raceOf(m, b.id) + "</span><span>" + sw(PC[m.winner]) + " " + nm(m.winner) + " 승</span></div>").join("") + "</div>"
+          : '<p class="m" style="margin-top:8px">맞대결 기록 없음</p>') +
         "</div>"
       );
     }).join("") +
@@ -519,26 +630,37 @@ function tabH2H() {
 }
 
 function tabRace() {
-  const l = scoped(), rs = { Z: [0, 0], T: [0, 0], P: [0, 0] }, mu = {}, pr = {};
+  const l = scoped();
+  if (!l.length) return noGames();
+  const mu = {}, pr = {};
   P.forEach((p) => { pr[p.id] = { Z: [0, 0], T: [0, 0], P: [0, 0] }; });
   l.forEach((m) => {
     const w = m.winner, lo = loserOf(m), wr = raceOf(m, w), lr = raceOf(m, lo);
-    if (!rs[wr] || !rs[lr]) return;
-    rs[wr][0]++;
-    rs[lr][1]++;
-    if (pr[w]) pr[w][wr][0]++;
-    if (pr[lo]) pr[lo][lr][1]++;
+    if (pr[w] && pr[w][wr]) pr[w][wr][0]++;
+    if (pr[lo] && pr[lo][lr]) pr[lo][lr][1]++;
+    if (!R[wr] || !R[lr]) return;
     const k = [wr, lr].sort(), key = k[0] + " vs " + k[1];
     mu[key] = mu[key] || { g: 0, a: 0, b: 0, k: k };
     mu[key].g++;
-    if (wr !== lr) {
-      wr === k[0] ? mu[key].a++ : mu[key].b++;
-    }
+    if (wr !== lr) { wr === k[0] ? mu[key].a++ : mu[key].b++; }
   });
-  const rows = Object.keys(R).map((r) => '<tr><td><b class="rc ' + r + '">' + r + "</b> " + R[r] + '</td><td class="w">' + rs[r][0] + '</td><td class="l">' + rs[r][1] + "</td><td>"+ rate(rs[r][0], rs[r][1]) + '</td><td style="min-width:100px">' + bar(rs[r][0], rs[r][1]) + "</td></tr>").join("");
+  const cards = P.map((p) => {
+    const x = pr[p.id], tot = ["Z", "T", "P"].reduce((a, r) => a + x[r][0] + x[r][1], 0);
+    return (
+      '<div class="h2h"><div class="row" style="margin-bottom:10px"><b>' + sw(PC[p.id]) + " " + p.n + '</b><span class="m">' + tot + "판</span></div>" +
+      '<div class="chart">' +
+      donut(["Z", "T", "P"].map((r) => ({ v: x[r][0] + x[r][1], c: RC[r], t: R[r] + " " + (x[r][0] + x[r][1]) + "판" })), { center: tot ? String(tot) : "-", sub: tot ? "판" : "", label: p.n + " 종족 사용" }) +
+      '<div class="legend">' +
+      ["Z", "T", "P"].map((r) => {
+        const g = x[r][0] + x[r][1];
+        return '<div class="lg"><span>' + sw(RC[r]) + '<b class="rc ' + r + '">' + r + "</b> " + R[r] + "</span><span>" + (g ? x[r][0] + "승 " + x[r][1] + '패 <span class="m">' + rate(x[r][0], x[r][1]) + "</span>" : '<span class="m">-</span>') + "</span></div>";
+      }).join("") +
+      "</div></div></div>"
+    );
+  }).join("");
   const mk = Object.keys(mu).sort((a, b) => mu[b].g - mu[a].g);
   return (
-    '<div class="card"><h2>종족별 승률</h2><div class="tw"><table><tr><th>종족</th><th>승</th><th>패</th><th>승률</th><th></th></tr>' + rows + "</table></div></div>" +
+    '<div class="g3x">' + cards + "</div>" +
     '<div class="card"><h2>종족 상성</h2>' +
     (mk.length
       ? '<div class="tw"><table><tr><th>매치업</th><th>경기</th><th>결과</th></tr>' +
@@ -548,71 +670,63 @@ function tabRace() {
         }).join("") +
         "</table></div>"
       : '<p class="m">기록 없음</p>') +
-    "</div>" +
-    '<div class="card"><h2>선수별 종족 성적</h2><div class="tw"><table><tr><th>선수</th><th>Z</th><th>T</th><th>P</th></tr>' +
-    P.map((p) => {
-      return (
-        "<tr><td><b>" + p.n + "</b></td>" +
-        ["Z", "T", "P"].map((r) => {
-          const x = pr[p.id][r];
-          return "<td>" + (x[0] + x[1] ? x[0] + "승 " + x[1] + '패 <span class="m">' + rate(x[0], x[1]) + "</span>" : '<span class="m">-</span>') + "</td>";
-        }).join("") +
-        "</tr>"
-      );
-    }).join("") +
+    "</div>"
+  );
+}
+
+// ---- daily stacked bars: wins per player per day
+function tabDaily() {
+  const l = scoped();
+  if (!l.length) return noGames();
+  const days = {}, order = [];
+  l.forEach((m) => {
+    if (!days[m.date]) { days[m.date] = { L: 0, G: 0, T: 0, n: 0 }; order.push(m.date); }
+    if (days[m.date][m.winner] != null) days[m.date][m.winner]++;
+    days[m.date].n++;
+  });
+  const max = Math.max.apply(null, order.map((d) => days[d].n));
+  const H = 170, top = 18, base = H - 22, bw = 22, step = 40, W = Math.max(300, order.length * step + 16);
+  const yv = (v) => ((base - top) * v) / max;
+  let bars = "";
+  order.forEach((d, i) => {
+    const x = 12 + i * step + (step - bw) / 2;
+    let y = base;
+    const segs = P.filter((p) => days[d][p.id] > 0);
+    segs.forEach((p, k) => {
+      const h = yv(days[d][p.id]), isTop = k === segs.length - 1, gap = k > 0 ? 2 : 0;
+      const hh = Math.max(h - gap, 1), yy = y - h;
+      const rr = isTop ? Math.min(4, hh / 2) : 0;
+      // rounded top only on the top segment
+      const path = "M" + x + "," + (yy + hh) + " V" + (yy + rr) + (rr ? " Q" + x + "," + yy + " " + (x + rr) + "," + yy : "") +
+        " H" + (x + bw - rr) + (rr ? " Q" + (x + bw) + "," + yy + " " + (x + bw) + "," + (yy + rr) : "") + " V" + (yy + hh) + " Z";
+      bars += '<path d="' + path + '" style="fill:' + PC[p.id] + '"><title>' + md(d) + " " + p.n + " " + days[d][p.id] + "승</title></path>";
+      y -= h;
+    });
+    bars += '<text x="' + (x + bw / 2) + '" y="' + (y - 5) + '" text-anchor="middle" style="fill:var(--tx);font-size:11px;font-weight:800">' + days[d].n + "</text>";
+    bars += '<text x="' + (x + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle" style="fill:var(--mu);font-size:10px">' + md(d) + "</text>";
+  });
+  const svg =
+    '<svg width="' + W + '" height="' + H + '" role="img" aria-label="일별 승수">' +
+    '<line x1="0" x2="' + W + '" y1="' + base + '" y2="' + base + '" style="stroke:var(--ln)"/>' + bars + "</svg>";
+  const s = stats(l);
+  return (
+    '<div class="card"><div class="row" style="margin-bottom:6px"><h2 style="margin:0">일별 승수</h2>' +
+    '<span class="m" style="display:flex;gap:10px">' + P.map((p) => '<span style="display:flex;align-items:center;gap:4px">' + sw(PC[p.id]) + p.n + "</span>").join("") + "</span></div>" +
+    '<p class="m" style="margin-bottom:8px">막대 높이 = 그날 경기 수, 색 = 이긴 사람</p>' +
+    '<div class="scroll" id="dscroll">' + svg + "</div></div>" +
+    '<div class="card"><h2>날짜별 요약</h2><div class="tw"><table><tr><th>날짜</th><th>경기</th>' + P.map((p) => "<th>" + p.n + "</th>").join("") + "</tr>" +
+    order.slice().reverse().map((d) => "<tr><td><b>" + md(d) + "</b></td><td>" + days[d].n + "</td>" + P.map((p) => "<td>" + days[d][p.id] + "승</td>").join("") + "</tr>").join("") +
+    "<tr><td><b>합계</b></td><td>" + l.length + "</td>" + P.map((p) => "<td><b>" + s[p.id].w + "승</b></td>").join("") + "</tr>" +
     "</table></div></div>"
   );
 }
 
-function tabBuild() {
-  return (
-    '<div class="card"><h2>빌드 승률 · 메모</h2><div class="f2"><select class="in" id="bp"><option value="ALL">전체 선수</option>' +
-    P.map((p) => '<option value="' + p.id + '"' + (S.bp === p.id ? " selected" : "") + ">" + p.n + "</option>").join("") +
-    '</select><input class="in" id="bq" placeholder="빌드 · 메모 검색" value="' + esc(S.q) + '"></div><div id="bres"></div></div>'
-  );
-}
-
-function fillBuild() {
-  const rows = [], q = S.q.trim().toLowerCase();
-  scoped().forEach((m) => {
-    m.players.forEach((p) => {
-      if (S.bp !== "ALL" && p !== S.bp) return;
-      const r = raceOf(m, p), b = (m.builds && m.builds[p]) || "-", n = (m.notes && m.notes[p]) || "";
-      if (!hasB(b) && !n) return;
-      if (q && (nm(p) + " " + r + " " + b + " " + n).toLowerCase().indexOf(q) < 0) return;
-      rows.push({ m: m, p: p, r: r, b: b, n: n, win: m.winner === p });
-    });
-  });
-  const ag = {};
-  rows.forEach((x) => {
-    if (!hasB(x.b)) return;
-    const k = x.r + " " + x.b;
-    ag[k] = ag[k] || [0, 0];
-    x.win ? ag[k][0]++ : ag[k][1]++;
-  });
-  const ks = Object.keys(ag).sort((a, b) => ag[b][0] + ag[b][1] - ag[a][0] - ag[a][1]);
-  $("#bres").innerHTML =
-    (ks.length
-      ? '<div class="tw"><table><tr><th>빌드</th><th>승</th><th>패</th><th>승률</th></tr>' +
-        ks.map((k) => '<tr><td><b>' + esc(k) + '</b></td><td class="w">' + ag[k][0] + '</td><td class="l">' + ag[k][1] + "</td><td>" + rate(ag[k][0], ag[k][1]) + "</td></tr>").join("") +
-        "</table></div>"
-      : "") +
-    (rows.length
-      ? '<div style="margin-top:12px">' +
-        rows.slice().reverse().map((x) => '<div class="mi"><div><span class="m">' + x.m.date.slice(5) + " #" + x.m.seq + "</span> <b>" + nm(x.p) + '</b> <span class="rc ' + x.r + '">' + x.r + "</span> " + (hasB(x.b) ? '<span class="pill">' + esc(x.b) + "</span> " : "") + '<span class="m">' + esc(x.n) + '</span></div><span class="tag ' + (x.win ? "w" : "l") + '">' + (x.win ? "승" : "패") + "</span></div>").join("") +
-        "</div>"
-      : '<p class="m">선택한 빌드나 메모 기록이 없습니다.</p>');
-}
-
 function renderTab() {
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.v === S.tab));
-  const h = { list: tabList, h2h: tabH2H, race: tabRace, build: tabBuild }[S.tab]();
-  $("#tab").innerHTML = h;
-  if (S.tab === "build") {
-    fillBuild();
-    $("#bp").onchange = (e) => { S.bp = e.target.value; fillBuild(); };
-    $("#bq").oninput = (e) => { S.q = e.target.value; fillBuild(); };
-  }
+  const f = { list: tabList, h2h: tabH2H, race: tabRace, daily: tabDaily }[S.tab] || tabH2H;
+  $("#tab").innerHTML = f();
+  const ds = $("#dscroll");
+  if (ds) ds.scrollLeft = ds.scrollWidth;   // newest day visible first
 }
 
 function hm(t) {
@@ -648,10 +762,11 @@ function renderPending() {
 function render() {
   renumber();
   try {
-    sessionStorage.setItem("sc_s", JSON.stringify({ step: S.step, sel: S.sel, races: S.races, winner: S.winner, date: S.date, scope: S.scope, tab: S.tab }));
+    sessionStorage.setItem("sc_s", JSON.stringify({ step: S.step, sel: S.sel, races: S.races, winner: S.winner, date: S.date, period: S.period, tab: S.tab, showWiz: S.showWiz }));
   } catch (e) {}
   if ($("#date")) $("#date").value = S.date;
-  document.querySelectorAll("#scope button").forEach((b) => b.classList.toggle("on", b.dataset.v === S.scope));
+  document.querySelectorAll("#period button").forEach((b) => b.classList.toggle("on", b.dataset.v === S.period));
+  if ($("#menu")) $("#menu").hidden = !S.menu;
   renderPending();
   renderStrip();
   renderWiz();
@@ -659,16 +774,16 @@ function render() {
 }
 
 function summary() {
-  const l = day(), s = stats(l), t = ["[투혼 1:1 전적 · " + S.date + "]"];
+  const l = scoped(), s = stats(l), t = ["[투혼 1:1 전적 · " + PERIOD_LABEL[S.period] + " " + l.length + "경기]"];
   P.forEach((p) => {
     const x = s[p.id];
     t.push(p.n + ": " + x.w + "승 " + x.l + "패 (" + rate(x.w, x.l) + ")" + (x.st > 1 ? " " + x.st + "연승 중" : x.st < -1 ? " " + -x.st + "연패 중" : ""));
   });
-  if (l.length) {
+  if (l.length && S.period === "today") {
     t.push("");
     l.forEach((m) => {
       const w = m.winner, lo = loserOf(m);
-      t.push("#" + m.seq + " " + nm(w) + "(" + raceOf(m, w) + ") 승 vs " + nm(lo) + "(" + raceOf(m, lo) + ")");
+      t.push(md(m.date) + " " + nm(w) + "(" + raceOf(m, w) + ") 승 vs " + nm(lo) + "(" + raceOf(m, lo) + ")");
     });
   }
   return t.join("\n");
@@ -799,7 +914,7 @@ async function refreshFromCloud(showToast = false) {
 
 const ACT = {
   refreshData: () => refreshFromCloud(true),
-  openDbConfig: openDbConfigModal,
+  openDbConfig: () => { S.menu = false; render(); openDbConfigModal(); },
   saveDbConfig: () => {
     const raw = ($("#dbConfigInput") && $("#dbConfigInput").value.trim()) || "";
     try {
@@ -893,8 +1008,9 @@ const ACT = {
     S.winner = null;
     S.sel = [];
     S.step = 1;
+    S.showWiz = false;
     await saveMatchToDB(m);
-    toast("경기 #" + m.seq + " 결과를 반영했어요");
+    toast(m.date + " 경기를 추가했어요");
   },
   tab: (v) => {
     S.tab = v;
@@ -903,6 +1019,22 @@ const ACT = {
   scope: (v) => {
     S.scope = v;
     render();
+  },
+  period: (v) => {
+    S.period = v;
+    render();
+  },
+  menu: () => {
+    S.menu = !S.menu;
+    const b = document.querySelector('[data-a="menu"]');
+    if (b) b.setAttribute("aria-expanded", String(S.menu));
+    render();
+  },
+  toggleWiz: () => {
+    S.showWiz = !S.showWiz;
+    S.menu = false;
+    render();
+    if (S.showWiz && $("#wizWrap")) $("#wizWrap").scrollIntoView({ block: "start", behavior: "smooth" });
   },
   prev: () => {
     S.date = shift(S.date, -1);
@@ -965,7 +1097,7 @@ const ACT = {
     if (!m) return;
     requestProtectedAction(
       "경기 삭제 확인",
-      S.date + " #" + m.seq + " (" + nm(m.players[0]) + " vs " + nm(m.players[1]) + ") 기록을 삭제하려면 비밀번호를 입력하세요.",
+      md(m.date) + " " + nm(m.players[0]) + " vs " + nm(m.players[1]) + " 기록을 삭제하려면 비밀번호를 입력하세요.",
       async () => {
         const backupMatch = JSON.parse(JSON.stringify(m));
         await deleteMatchFromDB(v);
@@ -1026,6 +1158,7 @@ const ACT = {
     }
   },
   kakao: () => {
+    S.menu = false; render();
     const t = summary();
     panel("카톡 공유용 전적", t, false);
     const ta = $("#ptxt");
@@ -1035,6 +1168,7 @@ const ACT = {
     }
   },
   backup: () => {
+    S.menu = false; render();
     const restoreBtn = '<button type="button" class="btn" data-a="restore">붙여넣은 내용으로 복원</button>';
     const desc = '<p class="m" style="margin:-4px 0 12px 4px">백업 JSON 데이터를 복사해 보관하거나, 붙여넣은 뒤 복원하면 기존 기록에 합쳐집니다.</p>';
     panel("백업 · 복원", JSON.stringify(matches), true, restoreBtn);
