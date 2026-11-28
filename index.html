@@ -104,6 +104,31 @@ th{color:var(--mu);font-size:12px}
 .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 svg text{font-family:inherit}
 .empty{padding:18px 4px;text-align:center}
+.tabs button{flex:1 0 auto}
+.pcard{cursor:pointer;transition:border-color .15s ease}
+.pcard:hover{border-color:var(--ac)}
+.elo{font-size:12px;color:var(--mu);font-weight:700}
+.up{color:var(--w)}.dn{color:var(--l)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chip{border:1px solid var(--ln);background:#0b101a;color:var(--mu);border-radius:999px;min-height:34px;padding:0 12px;font-size:13px;font-weight:700;cursor:pointer}
+.chip.on{color:#fff;border-color:var(--ac);background:var(--p2)}
+.fig{position:relative;height:240px}
+.fig svg{position:absolute;inset:0;width:100%;height:100%;touch-action:pan-y}
+.tip{position:absolute;pointer-events:none;background:#0b101a;border:1px solid var(--ln);border-radius:8px;padding:6px 9px;font-size:12px;line-height:1.5;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.4);display:none;z-index:2}
+.tip b{font-weight:800}
+.rec{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
+@media(min-width:780px){.rec{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.rec .h2h .k{font-size:12px;color:var(--mu);font-weight:700}
+.rec .h2h .v{font-size:20px;font-weight:900;margin:4px 0 2px}
+.rows .r{display:grid;grid-template-columns:4.5em minmax(0,1fr) auto;gap:8px;align-items:center;padding:4px 0;font-size:13px}
+.rows .r .bar{margin:0}
+.ach{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.ach div{border:1px solid var(--ln);border-radius:8px;padding:7px 9px;font-size:12px}
+.ach div b{display:block;font-size:13px}
+.ach .off{opacity:.38}
+.ach .on{border-color:rgba(245,158,11,.55);background:rgba(245,158,11,.08)}
+.pred{margin-top:8px;font-size:12px;color:var(--mu)}
+.modal>div.wide{max-width:560px}
 a.btn{text-decoration:none;display:inline-flex;align-items:center}
 .toast button{background:none;border:0;color:#0284c7;font-weight:800;cursor:pointer;min-height:32px}
 </style>
@@ -148,6 +173,8 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center}
   <section class="players" id="strip"></section>
   <nav class="tabs" id="tabs">
     <button type="button" data-a="tab" data-v="h2h">상대 전적</button>
+    <button type="button" data-a="tab" data-v="rating">레이팅</button>
+    <button type="button" data-a="tab" data-v="records">기록실</button>
     <button type="button" data-a="tab" data-v="race">종족</button>
     <button type="button" data-a="tab" data-v="daily">일별</button>
     <button type="button" data-a="tab" data-v="list">경기 기록</button>
@@ -271,6 +298,7 @@ function loadLocalMatches() {
   return seed;
 }
 
+const PERIOD_LABEL_KEYS = ["today", "7", "30", "all"];
 const S = {
   step: 1,
   date: fmt(new Date()),
@@ -289,6 +317,13 @@ const S = {
   bp: "ALL"
 };
 
+function savePrefs() {
+  try { localStorage.setItem("sc_prefs_v1", JSON.stringify({ period: S.period, tab: S.tab })); } catch (e) {}
+}
+try {
+  const pf = JSON.parse(localStorage.getItem("sc_prefs_v1") || "null");
+  if (pf) { if (PERIOD_LABEL_KEYS.indexOf(pf.period) > -1) S.period = pf.period; if (pf.tab) S.tab = pf.tab; }
+} catch (e) {}
 try {
   const s0 = JSON.parse(sessionStorage.getItem("sc_s") || "null");
   if (s0) Object.keys(s0).forEach((k) => { S[k] = s0[k]; });
@@ -434,6 +469,83 @@ function bar(w, l) {
 }
 
 
+// ---- Elo rating over ALL games (chronological). Start 1500, K=32.
+const K_ELO = 32;
+let ELO = { r: { L: 1500, G: 1500, T: 1500 }, hist: [], pd: {} };
+function computeElo() {
+  const r = { L: 1500, G: 1500, T: 1500 }, hist = [];
+  matches.slice().sort(cmp).forEach((m) => {
+    const w = m.winner, l = loserOf(m);
+    if (!(w in r) || !(l in r)) return;
+    const ew = 1 / (1 + Math.pow(10, (r[l] - r[w]) / 400));
+    const d = Math.max(1, Math.round(K_ELO * (1 - ew)));
+    m._ew = ew; m._d = d;
+    r[w] += d; r[l] -= d;
+    hist.push({ m: m, snap: { L: r.L, G: r.G, T: r.T } });
+  });
+  const from = periodStart(), pd = { L: 0, G: 0, T: 0 };
+  hist.forEach((h) => {
+    if (from && h.m.date < from) return;
+    pd[h.m.winner] += h.m._d; pd[loserOf(h.m)] -= h.m._d;
+  });
+  ELO = { r: r, hist: hist, pd: pd };
+}
+const expect = (a, b) => 1 / (1 + Math.pow(10, (ELO.r[b] - ELO.r[a]) / 400));
+
+// streak / record helpers over a chronological list
+function streaks(list, pid) {
+  let cur = 0, best = { n: 0 }, worst = { n: 0 }, start = null;
+  list.forEach((m) => {
+    if (m.players.indexOf(pid) < 0) return;
+    const win = m.winner === pid;
+    if (win) { if (cur > 0) cur++; else { cur = 1; start = m; } if (cur > best.n) best = { n: cur, from: start.date, to: m.date }; }
+    else { if (cur < 0) cur--; else { cur = -1; start = m; } if (-cur > worst.n) worst = { n: -cur, from: start.date, to: m.date }; }
+  });
+  return { cur: cur, best: best, worst: worst };
+}
+function vsTable(list, pid) {
+  const o = {};
+  list.forEach((m) => {
+    if (m.players.indexOf(pid) < 0) return;
+    const op = m.players[0] === pid ? m.players[1] : m.players[0];
+    o[op] = o[op] || [0, 0];
+    m.winner === pid ? o[op][0]++ : o[op][1]++;
+  });
+  return o;
+}
+const range2 = (a, b) => (a === b ? md(a) : md(a) + "~" + md(b));
+
+// achievements (all-time), borrowed from game badge systems
+function achievements(pid) {
+  const all = matches.slice().sort(cmp), mine = all.filter((m) => m.players.indexOf(pid) > -1);
+  const wins = mine.filter((m) => m.winner === pid), st = streaks(all, pid);
+  const perDay = {}, days = {}, racesWon = {};
+  mine.forEach((m) => { days[m.date] = 1; if (m.winner === pid) { perDay[m.date] = (perDay[m.date] || 0) + 1; racesWon[raceOf(m, pid)] = 1; } });
+  const maxDay = Math.max(0, ...Object.values(perDay));
+  // revenge: a win right after losing 3+ in a row to the same opponent
+  let revenge = false; const lossRun = {};
+  mine.forEach((m) => {
+    const op = m.players[0] === pid ? m.players[1] : m.players[0];
+    if (m.winner === pid) { if ((lossRun[op] || 0) >= 3) revenge = true; lossRun[op] = 0; }
+    else lossRun[op] = (lossRun[op] || 0) + 1;
+  });
+  const upset = wins.some((m) => m._ew != null && m._ew < 0.35);
+  return [
+    ["첫 승", "첫 승리", wins.length >= 1],
+    ["10승", "누적 10승", wins.length >= 10],
+    ["50승", "누적 50승", wins.length >= 50],
+    ["100승", "누적 100승", wins.length >= 100],
+    ["3연승", "3연승 달성", st.best.n >= 3],
+    ["5연승", "5연승 달성", st.best.n >= 5],
+    ["10연승", "10연승 달성", st.best.n >= 10],
+    ["하루 5승", "하루에 5승", maxDay >= 5],
+    ["복수", "3연패 당한 상대에게 승리", revenge],
+    ["업셋", "예상 승률 35% 미만에서 승리", upset],
+    ["올라운더", "세 종족으로 모두 승리", ["Z", "T", "P"].every((r) => racesWon[r])],
+    ["개근", "5일 이상 출전", Object.keys(days).length >= 5]
+  ];
+}
+
 // ---- SVG donut: segs [{v, c, t}] (c = null -> counted but not drawn; track shows through)
 function donut(segs, o) {
   o = o || {};
@@ -484,11 +596,12 @@ function renderStrip() {
     list.forEach((m) => { if (m.players.indexOf(p.id) > -1) { const r = raceOf(m, p.id); races[r] = (races[r] || 0) + 1; } });
     const main = Object.keys(races).sort((a, b) => races[b] - races[a])[0];
     return (
-      '<div class="card"><div class="pc">' +
+      '<div class="card pcard" data-a="player" data-v="' + p.id + '" role="button" tabindex="0" aria-label="' + p.n + ' 상세 보기"><div class="pc">' +
       donut([{ v: x.w, c: PC[p.id], t: x.w + "승" }, { v: x.l, c: null }], { center: g ? rate(x.w, x.l) : "-", sub: g ? g + "판" : "", label: p.n + " 승률 " + rate(x.w, x.l) }) +
       '<div class="info"><div class="nmr">' + sw(PC[p.id]) + esc(p.n) + (g ? ' <span class="rank">' + (i + 1) + "위</span>" : "") +
       (main && main !== "?" ? ' <span class="rc ' + main + '" style="font-size:13px" title="주 종족">' + main + "</span>" : "") + "</div>" +
       '<div class="wl">' + x.w + "승 " + x.l + '패 <span class="st ' + (x.st > 0 ? "w" : x.st < 0 ? "l" : "") + '">· ' + stTxt(x) + "</span></div>" +
+      '<div class="elo" style="margin:-3px 0 6px">레이팅 ' + ELO.r[p.id] + (S.period !== "all" && ELO.pd[p.id] ? ' <span class="' + (ELO.pd[p.id] > 0 ? "up" : "dn") + '">' + (ELO.pd[p.id] > 0 ? "▲" : "▼") + Math.abs(ELO.pd[p.id]) + "</span>" : "") + "</div>" +
       '<div class="form" aria-label="최근 10경기">' +
       x.f.slice(-10).map((f) => '<i title="' + (f === "W" ? "승" : "패") + '" style="' + (f === "W" ? "background:" + PC[p.id] + ";border-color:" + PC[p.id] : "") + '"></i>').join("") +
       "</div></div></div></div>"
@@ -578,12 +691,20 @@ const emptyCard = (msg) => '<div class="card"><p class="m empty">' + msg + "</p>
 const noGames = () => emptyCard(PERIOD_LABEL[S.period] + " 경기가 없어요." + (S.period !== "all" ? " 위에서 <b>전체</b>를 눌러보세요." : ""));
 
 function tabList() {
-  const l = scoped().slice().reverse();
-  if (!l.length) return noGames();
+  const all = scoped();
+  if (!all.length) return noGames();
+  const fp = S.fp || "", fo = S.fo || "";
+  const l = all.filter((m) => (!fp || m.players.indexOf(fp) > -1) && (!fo || m.players.indexOf(fo) > -1)).reverse();
+  const chip = (a, v, label, on) => '<button type="button" class="chip' + (on ? " on" : "") + '" data-a="' + a + '" data-v="' + v + '">' + label + "</button>";
+  const chips =
+    '<div class="chips">' + chip("fp", "", "전체", !fp) + P.map((p) => chip("fp", p.id, sw(PC[p.id]) + " " + p.n, fp === p.id)).join("") + "</div>" +
+    (fp ? '<div class="chips"><span class="m" style="align-self:center">상대</span>' + chip("fo", "", "전체", !fo) + P.filter((p) => p.id !== fp).map((p) => chip("fo", p.id, p.n, fo === p.id)).join("") + "</div>" : "");
+  if (!l.length) return '<div class="card">' + chips + '<p class="m empty">조건에 맞는 경기가 없어요.</p></div>';
   const byDate = {};
   l.forEach((m) => { (byDate[m.date] = byDate[m.date] || []).push(m); });
   return (
-    '<div class="card">' +
+    '<div class="card">' + chips +
+    (fp ? '<p class="m" style="margin-bottom:8px">' + l.length + "경기 · " + nm(fp) + " " + l.filter((m) => m.winner === fp).length + "승 " + l.filter((m) => m.winner !== fp).length + "패</p>" : "") +
     Object.keys(byDate).map((d) => {
       const g = byDate[d], s = stats(g);
       return (
@@ -619,6 +740,7 @@ function tabH2H() {
         '<div class="legend">' +
         [[a, wa], [b, wb]].map((x) => '<div class="lg"><span>' + sw(PC[x[0].id]) + "<b>" + x[0].n + "</b></span><span>" + x[1] + '승 <span class="m">' + (g ? Math.round((x[1] / g) * 100) + "%" : "-") + "</span></span></div>").join("") +
         "</div></div>" +
+        '<div class="pred">다음 판 예상 승률 · ' + a.n + " " + Math.round(expect(a.id, b.id) * 100) + "% : " + Math.round(expect(b.id, a.id) * 100) + "% " + b.n + "</div>" +
         (logs.length
           ? '<div class="hist">' + logs.slice(-5).reverse().map((m) => '<div class="m"><span>' + md(m.date) + " " + raceOf(m, a.id) + " vs " + raceOf(m, b.id) + "</span><span>" + sw(PC[m.winner]) + " " + nm(m.winner) + " 승</span></div>").join("") + "</div>"
           : '<p class="m" style="margin-top:8px">맞대결 기록 없음</p>') +
@@ -721,10 +843,165 @@ function tabDaily() {
   );
 }
 
+function tabRating() {
+  if (!ELO.hist.length) return noGames();
+  return (
+    '<div class="card"><div class="row" style="margin-bottom:4px"><h2 style="margin:0">레이팅 추이</h2>' +
+    '<span class="m" style="display:flex;gap:10px">' + P.map((p) => '<span style="display:flex;align-items:center;gap:4px">' + sw(PC[p.id]) + p.n + " " + ELO.r[p.id] + "</span>").join("") + "</span></div>" +
+    '<p class="m" style="margin-bottom:8px">체스식 Elo · 1500에서 시작, 이기면 오르고 지면 내려가요. 강한 상대를 이길수록 많이 올라요.</p>' +
+    '<div class="fig" id="rfig"><svg id="rsvg" role="img" aria-label="레이팅 추이"></svg><div class="tip" id="rtip"></div></div></div>' +
+    '<div class="card"><h2>현재 순위</h2><div class="tw"><table><tr><th>순위</th><th>선수</th><th>레이팅</th><th>' + (S.period === "all" ? "최고" : PERIOD_LABEL[S.period] + " 변동") + "</th></tr>" +
+    P.slice().sort((a, b) => ELO.r[b.id] - ELO.r[a.id]).map((p, i) => {
+      const peak = Math.max(1500, ...ELO.hist.map((h) => h.snap[p.id]));
+      const d = ELO.pd[p.id];
+      return "<tr><td>" + (i + 1) + "</td><td>" + sw(PC[p.id]) + " <b>" + p.n + "</b></td><td><b>" + ELO.r[p.id] + "</b></td><td>" +
+        (S.period === "all" ? peak : '<span class="' + (d > 0 ? "up" : d < 0 ? "dn" : "") + '">' + (d > 0 ? "+" : "") + d + "</span>") + "</td></tr>";
+    }).join("") + "</table></div></div>"
+  );
+}
+
+function drawRating() {
+  const svg = $("#rsvg"), fig = $("#rfig"), tip = $("#rtip");
+  if (!svg || !fig) return;
+  const from = periodStart();
+  let pts = ELO.hist.filter((h) => !from || h.m.date >= from);
+  const prev = ELO.hist[ELO.hist.indexOf(pts[0]) - 1];
+  const base = { snap: prev ? prev.snap : { L: 1500, G: 1500, T: 1500 }, m: null };
+  pts = [base].concat(pts);
+  const W = fig.clientWidth, H = fig.clientHeight, padL = 38, padR = 46, padT = 10, padB = 22;
+  let lo = Infinity, hi = -Infinity;
+  pts.forEach((h) => P.forEach((p) => { lo = Math.min(lo, h.snap[p.id]); hi = Math.max(hi, h.snap[p.id]); }));
+  lo = Math.floor((lo - 10) / 25) * 25; hi = Math.ceil((hi + 10) / 25) * 25;
+  const n = pts.length - 1 || 1;
+  const X = (i) => padL + ((W - padL - padR) * i) / n, Y = (v) => padT + ((H - padT - padB) * (hi - v)) / (hi - lo);
+  let g = "";
+  const stepV = Math.max(25, Math.ceil((hi - lo) / 4 / 25) * 25);
+  hi = lo + Math.ceil((hi - lo) / stepV) * stepV;
+  for (let v = lo; v <= hi; v += stepV) {
+    const y = Y(v);
+    g += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y + '" y2="' + y + '" style="stroke:var(--ln);stroke-width:1;opacity:' + (v === 1500 ? 0.9 : 0.45) + '"' + (v === 1500 ? ' stroke-dasharray="3 3"' : "") + "/>" +
+      '<text x="' + (padL - 6) + '" y="' + y + '" text-anchor="end" dominant-baseline="central" style="fill:var(--mu);font-size:10px">' + v + "</text>";
+  }
+  // date ticks at day boundaries (thinned to fit)
+  let lastD = "", ticks = [];
+  pts.forEach((h, i) => { if (h.m && h.m.date !== lastD) { ticks.push([i, h.m.date]); lastD = h.m.date; } });
+  const every = Math.max(1, Math.ceil(ticks.length / Math.max(2, Math.floor((W - padL - padR) / 52))));
+  ticks.forEach((t, k) => { if (k % every === 0) g += '<text x="' + X(t[0]) + '" y="' + (H - 6) + '" text-anchor="middle" style="fill:var(--mu);font-size:10px">' + md(t[1]) + "</text>"; });
+  const ends = [];
+  P.forEach((p) => {
+    const d = pts.map((h, i) => (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(h.snap[p.id]).toFixed(1)).join(" ");
+    g += '<path d="' + d + '" fill="none" style="stroke:' + PC[p.id] + ';stroke-width:2;stroke-linejoin:round;stroke-linecap:round"/>';
+    ends.push({ p: p, y: Y(pts[pts.length - 1].snap[p.id]) });
+  });
+  // direct end labels, nudged apart so they never overlap
+  ends.sort((a, b) => a.y - b.y);
+  for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 13) ends[k].y = ends[k - 1].y + 13;
+  ends.forEach((e) => { g += '<text x="' + (W - padR + 6) + '" y="' + e.y + '" dominant-baseline="central" style="fill:var(--tx);font-size:11px;font-weight:800">' + e.p.n + "</text>"; });
+  g += '<line id="rx" y1="' + padT + '" y2="' + (H - padB) + '" style="stroke:var(--mu);stroke-width:1;display:none"/>';
+  P.forEach((p) => { g += '<circle id="rd' + p.id + '" r="4" style="fill:' + PC[p.id] + ';stroke:var(--pn);stroke-width:2;display:none"/>'; });
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.innerHTML = g;
+  const move = (ev) => {
+    const box = svg.getBoundingClientRect(), x = ev.clientX - box.left;
+    const i = Math.max(0, Math.min(pts.length - 1, Math.round(((x - padL) / (W - padL - padR)) * n)));
+    const h = pts[i], xx = X(i), rx = $("#rx");
+    rx.setAttribute("x1", xx); rx.setAttribute("x2", xx); rx.style.display = "";
+    P.forEach((p) => { const c = $("#rd" + p.id); c.setAttribute("cx", xx); c.setAttribute("cy", Y(h.snap[p.id])); c.style.display = ""; });
+    const head = h.m ? md(h.m.date) + " · " + nm(h.m.winner) + " 승 vs " + nm(loserOf(h.m)) + " (±" + h.m._d + ")" : "시작";
+    tip.innerHTML = "<b>" + esc(head) + "</b><br>" + P.slice().sort((a, b) => h.snap[b.id] - h.snap[a.id]).map((p) => sw(PC[p.id]) + " " + p.n + " " + h.snap[p.id]).join("<br>");
+    tip.style.display = "block";
+    const tw = tip.offsetWidth;
+    tip.style.left = Math.min(Math.max(4, xx + 10 + tw > W ? xx - tw - 10 : xx + 10), W - tw - 4) + "px";
+    tip.style.top = "8px";
+  };
+  const leave = () => { tip.style.display = "none"; const rx = $("#rx"); if (rx) rx.style.display = "none"; P.forEach((p) => { const c = $("#rd" + p.id); if (c) c.style.display = "none"; }); };
+  svg.onpointermove = move; svg.onpointerdown = move; svg.onpointerleave = leave;
+}
+let rObs = null;
+
+function tabRecords() {
+  const l = scoped();
+  if (!l.length) return noGames();
+  const card = (k, v, sub) => '<div class="h2h"><div class="k">' + k + '</div><div class="v">' + v + '</div><div class="m">' + sub + "</div></div>";
+  const cards = [];
+  // longest win / loss streaks
+  let bw = null, bl = null;
+  P.forEach((p) => { const s0 = streaks(l, p.id); if (!bw || s0.best.n > bw.n) bw = Object.assign({ p: p }, s0.best); if (!bl || s0.worst.n > bl.n) bl = Object.assign({ p: p }, s0.worst); });
+  if (bw && bw.n) cards.push(card("최장 연승", sw(PC[bw.p.id]) + " " + bw.p.n + " " + bw.n + "연승", range2(bw.from, bw.to)));
+  if (bl && bl.n) cards.push(card("최장 연패", sw(PC[bl.p.id]) + " " + bl.p.n + " " + bl.n + "연패", range2(bl.from, bl.to)));
+  // most wins in a day / busiest day
+  const dw = {}, dn = {};
+  l.forEach((m) => { const k = m.date + "|" + m.winner; dw[k] = (dw[k] || 0) + 1; dn[m.date] = (dn[m.date] || 0) + 1; });
+  const tw = Object.keys(dw).sort((a, b) => dw[b] - dw[a])[0];
+  if (tw) { const t = tw.split("|"); cards.push(card("하루 최다승", sw(PC[t[1]]) + " " + nm(t[1]) + " " + dw[tw] + "승", md(t[0]))); }
+  const bd = Object.keys(dn).sort((a, b) => dn[b] - dn[a])[0];
+  if (bd) cards.push(card("최다 경기일", dn[bd] + "경기", md(bd)));
+  // biggest upset
+  const up = l.filter((m) => m._ew != null).sort((a, b) => a._ew - b._ew)[0];
+  if (up && up._ew < 0.5) cards.push(card("최대 업셋", sw(PC[up.winner]) + " " + nm(up.winner) + " → " + nm(loserOf(up)), md(up.date) + " · 예상 승률 " + Math.round(up._ew * 100) + "%에서 승리"));
+  // current hot streak
+  let hot = null;
+  P.forEach((p) => { const s0 = streaks(l, p.id); if (s0.cur > 1 && (!hot || s0.cur > hot.n)) hot = { p: p, n: s0.cur }; });
+  if (hot) cards.push(card("지금 가장 뜨거운", sw(PC[hot.p.id]) + " " + hot.p.n, hot.n + "연승 진행 중"));
+  // nemesis / favourite opponent (min 3 games)
+  const nem = P.map((p) => {
+    const t = vsTable(l, p.id), ks = Object.keys(t).filter((k) => t[k][0] + t[k][1] >= 3);
+    if (!ks.length) return "";
+    const r0 = (k) => t[k][0] / (t[k][0] + t[k][1]);
+    const worst = ks.sort((a, b) => r0(a) - r0(b))[0], best = ks[ks.length - 1];
+    if (r0(worst) >= 0.5) return "";
+    return '<div class="lg"><span>' + sw(PC[p.id]) + "<b>" + p.n + "</b></span><span>천적 " + nm(worst) + ' <span class="m">' + t[worst][0] + "승 " + t[worst][1] + "패</span>" +
+      (best !== worst && r0(best) > 0.5 ? " · 먹잇감 " + nm(best) + ' <span class="m">' + t[best][0] + "승 " + t[best][1] + "패</span>" : "") + "</span></div>";
+  }).join("");
+  return (
+    '<div class="rec">' + cards.join("") + "</div>" +
+    (nem ? '<div class="card"><h2>천적 · 먹잇감</h2><p class="m" style="margin-bottom:6px">3판 이상 붙은 상대 중 승률이 가장 낮은/높은 상대</p>' + nem + "</div>" : "")
+  );
+}
+
+function openPlayer(pid) {
+  const p = P.find((x) => x.id === pid);
+  if (!p) return;
+  const l = scoped(), mine = l.filter((m) => m.players.indexOf(pid) > -1);
+  const w = mine.filter((m) => m.winner === pid).length, g = mine.length, st = streaks(l, pid), vs = vsTable(l, pid);
+  const row = (k, a, b) => '<div class="r"><span>' + k + "</span>" + bar(a, b) + '<span class="m">' + a + "승 " + b + "패 · " + rate(a, b) + "</span></div>";
+  const rr = {};
+  mine.forEach((m) => { const r = raceOf(m, pid); rr[r] = rr[r] || [0, 0]; m.winner === pid ? rr[r][0]++ : rr[r][1]++; });
+  const slots = [["오후", 12, 18], ["저녁", 18, 22], ["밤", 22, 26], ["새벽", 26, 30], ["오전", 6, 12]], tb = {};
+  mine.forEach((m) => {
+    const t = m.playedAt || m.createdAt; if (!t) return;
+    let h = new Date(t).getHours(); if (h < 6) h += 24;
+    const sl = slots.find((x) => h >= x[1] && h < x[2]); if (!sl) return;
+    tb[sl[0]] = tb[sl[0]] || [0, 0]; m.winner === pid ? tb[sl[0]][0]++ : tb[sl[0]][1]++;
+  });
+  const ach = achievements(pid), got = ach.filter((a) => a[2]).length;
+  $("#mbody").parentElement.classList.add("wide");
+  $("#mbody").innerHTML =
+    '<div class="row" style="margin-bottom:12px"><h2 style="margin:0">' + sw(PC[pid]) + " " + p.n + ' <span class="m">' + PERIOD_LABEL[S.period] + '</span></h2><button type="button" class="btn sm" data-a="closeModal">닫기</button></div>' +
+    '<div class="chart" style="margin-bottom:12px">' + donut([{ v: w, c: PC[pid] }, { v: g - w, c: null }], { size: 88, center: g ? rate(w, g - w) : "-", sub: g + "판" }) +
+    '<div class="legend"><div class="lg"><span>전적</span><b>' + w + "승 " + (g - w) + "패</b></div>" +
+    '<div class="lg"><span>레이팅</span><b>' + ELO.r[pid] + "</b></div>" +
+    '<div class="lg"><span>최장 연승</span><b>' + (st.best.n || 0) + "</b></div>" +
+    '<div class="lg"><span>최장 연패</span><b>' + (st.worst.n || 0) + "</b></div></div></div>" +
+    "<h2>상대별</h2><div class=\"rows\" style=\"margin-bottom:12px\">" + (Object.keys(vs).length ? Object.keys(vs).map((o) => row(nm(o), vs[o][0], vs[o][1])).join("") : '<p class="m">기록 없음</p>') + "</div>" +
+    "<h2>종족별</h2><div class=\"rows\" style=\"margin-bottom:12px\">" + (Object.keys(rr).length ? Object.keys(rr).map((r) => row('<b class="rc ' + r + '">' + r + "</b> " + (R[r] || ""), rr[r][0], rr[r][1])).join("") : '<p class="m">기록 없음</p>') + "</div>" +
+    "<h2>시간대별</h2><div class=\"rows\" style=\"margin-bottom:12px\">" + (Object.keys(tb).length ? slots.filter((x) => tb[x[0]]).map((x) => row(x[0], tb[x[0]][0], tb[x[0]][1])).join("") : '<p class="m">기록 없음</p>') + "</div>" +
+    "<h2>최근 20경기</h2><div class=\"form\" style=\"margin-bottom:14px\">" +
+    mine.slice(-20).map((m) => { const win = m.winner === pid; return '<i title="' + md(m.date) + " vs " + nm(m.players[0] === pid ? m.players[1] : m.players[0]) + " " + (win ? "승" : "패") + '" style="width:14px;height:14px;' + (win ? "background:" + PC[pid] + ";border-color:" + PC[pid] : "") + '"></i>'; }).join("") + "</div>" +
+    "<h2>업적 <span class=\"m\">" + got + "/" + ach.length + " · 전체 기간</span></h2><div class=\"ach\">" +
+    ach.map((a) => '<div class="' + (a[2] ? "on" : "off") + '"><b>' + (a[2] ? "★ " : "") + a[0] + "</b>" + a[1] + "</div>").join("") + "</div>";
+  $("#modal").classList.add("open");
+}
+
 function renderTab() {
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.v === S.tab));
-  const f = { list: tabList, h2h: tabH2H, race: tabRace, daily: tabDaily }[S.tab] || tabH2H;
+  const f = { list: tabList, h2h: tabH2H, race: tabRace, daily: tabDaily, rating: tabRating, records: tabRecords }[S.tab] || tabH2H;
   $("#tab").innerHTML = f();
+  if (rObs) { rObs.disconnect(); rObs = null; }
+  if (S.tab === "rating" && $("#rfig")) {
+    drawRating();
+    if (window.ResizeObserver) { rObs = new ResizeObserver(() => drawRating()); rObs.observe($("#rfig")); }
+  }
   const ds = $("#dscroll");
   if (ds) ds.scrollLeft = ds.scrollWidth;   // newest day visible first
 }
@@ -761,6 +1038,7 @@ function renderPending() {
 
 function render() {
   renumber();
+  computeElo();
   try {
     sessionStorage.setItem("sc_s", JSON.stringify({ step: S.step, sel: S.sel, races: S.races, winner: S.winner, date: S.date, period: S.period, tab: S.tab, showWiz: S.showWiz }));
   } catch (e) {}
@@ -873,6 +1151,7 @@ function openChangePwModal() {
 
 const closeModal = () => {
   S.edit = null;
+  if ($("#mbody")) $("#mbody").parentElement.classList.remove("wide");
   pendingProtectedAction = null;
   $("#modal").classList.remove("open");
 };
@@ -1014,7 +1293,10 @@ const ACT = {
   },
   tab: (v) => {
     S.tab = v;
+    savePrefs();
     renderTab();
+    const b = document.querySelector('#tabs [data-v="' + v + '"]');
+    if (b && b.scrollIntoView) b.scrollIntoView({ block: "nearest", inline: "nearest" });
   },
   scope: (v) => {
     S.scope = v;
@@ -1022,8 +1304,12 @@ const ACT = {
   },
   period: (v) => {
     S.period = v;
+    savePrefs();
     render();
   },
+  player: (v) => openPlayer(v),
+  fp: (v) => { S.fp = v; S.fo = ""; renderTab(); },
+  fo: (v) => { S.fo = v; renderTab(); },
   menu: () => {
     S.menu = !S.menu;
     const b = document.querySelector('[data-a="menu"]');
@@ -1251,6 +1537,11 @@ function handleActionEvent(e) {
 }
 
 document.addEventListener("click", handleActionEvent);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && $("#modal").classList.contains("open")) closeModal();
+  const t = e.target.closest && e.target.closest('[role="button"][data-a]');
+  if (t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); handleActionEvent(e); }
+});
 
 const dateEl = $("#date");
 if (dateEl) {
@@ -1268,16 +1559,42 @@ updateLastRaces();
 setSyncLabel("기기 저장 모드 (" + matches.length + "경기)");
 render();
 
+// live: new auto records show up without refreshing
+function applyLive(list, local) {
+  if (local || !Array.isArray(list)) return;
+  const known = {};
+  matches.forEach((m) => { known[m.id] = 1; });
+  pendings.forEach((m) => { known[m.id] = 1; });
+  const nextM = list.filter(valid), nextP = list.filter(isPending);
+  const fresh = nextM.filter((m) => !known[m.id]), freshP = nextP.filter((m) => !known[m.id]);
+  matches = nextM.sort(cmp);
+  pendings = nextP;
+  saveLocalMatches(matches);
+  setSyncLabel("실시간 연결됨 (" + matches.length + "경기)");
+  if ($("#modal").classList.contains("open")) return;   // don't redraw under an open dialog
+  render();
+  if (fresh.length === 1) toast("새 경기: " + nm(fresh[0].winner) + " 승 vs " + nm(loserOf(fresh[0])));
+  else if (fresh.length > 1) toast("새 경기 " + fresh.length + "개가 들어왔어요");
+  if (freshP.length) setTimeout(() => toast("확인 필요한 경기가 " + freshP.length + "개 있어요"), fresh.length ? 3000 : 0);
+}
+
 window.__scBridgeReady = async function (bridge) {
   cloudBridge = Object.assign(cloudBridge, bridge);
   await refreshFromCloud(false);
+  if (cloudBridge.subscribe) {
+    let first = true;
+    cloudBridge.subscribe((list, local) => {
+      if (first) { first = false; return; }   // initial snapshot = what refreshFromCloud already loaded
+      applyLive(list, local);
+    });
+  }
 };
 </script>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, getDoc, getDocs, setDoc, deleteDoc, collection, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, getDocs, setDoc, deleteDoc, collection, writeBatch, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 try {
   const app = initializeApp(activeConfig);
@@ -1336,9 +1653,16 @@ try {
     await batch.commit();
   };
 
+  const subscribe = (cb) => onSnapshot(matchesColRef(), (snap) => {
+    const list = [];
+    snap.forEach((d) => list.push(d.data()));
+    cb(list, snap.metadata ? snap.metadata.hasPendingWrites : false);
+  }, (err) => console.warn("live updates off:", err));
+
   if (window.__scBridgeReady) {
     await window.__scBridgeReady({
       enabled: true,
+      subscribe,
       db,
       fetchAll,
       saveMatch,
